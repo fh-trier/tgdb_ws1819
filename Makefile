@@ -22,9 +22,9 @@ IDX_FILE:=${FILE}.idx
 TEX_FILE:=${FILE}.tex
 
 # Hardlink Options
-FSD?=${HOME}/Dokumente/Studium/Fachschaftsdaten
+FSD?=${HOME}/Dokumente/Studium/Fachschaftsdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819
 HARDLINK_PATH:=${FSD}
-HARDLINK_FILE:=index.pdf
+HARDLINK_FILE:=Tutorium_WS1819.pdf
 
 # latexmk
 # compile the pdf file with latexmk
