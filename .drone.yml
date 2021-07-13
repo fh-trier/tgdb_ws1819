@@ -1,21 +1,32 @@
 ---
 kind: pipeline
-type: docker
+type: kubernetes
 name: latest
+
+platform:
+  os: linux
+  arch: amd64
 
 steps:
 - name: build
-  image: volkerraschek/container-latex:latest-archlinux
   commands:
   - make latexmk/index.pdf
+  image: docker.io/volkerraschek/container-latex:latest-archlinux
+  resources:
+    limits:
+      cpu: 500
+      memory: 250M
+
 - name: push-fhtrier
-  image: appleboy/drone-scp:1.6.2
+  depends_on:
+  - build
+  image: docker.io/appleboy/drone-scp:1.6.2
   settings:
     host: ssh.hochschule-trier.de
     user:
-      from_secret: ssh-user
+      from_secret: ssh_user_fh-trier
     key:
-      from_secret: ssh-key
+      from_secret: ssh_key
     port: 22
     command_timeout: 2m
     target:
@@ -25,52 +36,42 @@ steps:
     - sql/schema_01.sql
     - sql/sqlplus-settings.sql
   when:
-    repo:
-    - fh-trier/tgdb_ws1819
     branch:
     - master
-    event:
-    - cron
-    - push
-- name: push-github
-  image: appleboy/drone-git-push:latest
-  settings:
-    branch: master
-    remote: ssh://git@github.com/fh-trier/tgdb_ws1819.git
-    force: true
-    ssh_key:
-      from_secret: ssh-key
-  when:
     repo:
     - fh-trier/tgdb_ws1819
-    branch:
-    - master
     event:
-    - cron
     - push
+    - cron
+
 - name: push-nextcloud
-  image: volkerraschek/container-latex:latest-archlinux
   commands:
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file index.pdf --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/Tutorium_WS1819.pdf
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/schema_01.sql --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/schema.sql
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/sqlplus-settings.sql --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/sqlplus-settings.sql
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file index.pdf --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/Tutorium_WS1819.pdf
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/schema_01.sql --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/schema.sql
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/sqlplus-settings.sql --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/sqlplus-settings.sql
+  depends_on:
+  - build
   environment:
-    CLOUD_URL:
-      from_secret: cloud_url
     WEBDAV_USER:
       from_secret: webdav_username
     WEBDAV_PASSWORD:
       from_secret: webdav_password
+  image: docker.io/volkerraschek/container-latex:latest-archlinux
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
   when:
     repo:
     - fh-trier/tgdb_ws1819
-    branch:
-    - master
     event:
-    - cron
     - push
-- name: pipeline-notification
-  image: drillster/drone-email
+    - cron
+
+- name: email-notification
+  depends_on:
+  - push-fhtrier
+  - push-nextcloud
   environment:
     PLUGIN_HOST:
       from_secret: smtp_host
@@ -80,6 +81,11 @@ steps:
       from_secret: smtp_password
     PLUGIN_FROM:
       from_secret: smtp_mail_address
+  image: docker.io/drillster/drone-email:latest
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
   when:
     status:
     - changed
@@ -92,42 +98,62 @@ trigger:
 
 ---
 kind: pipeline
-type: docker
-name: tagged
+type: kubernetes
+name: release
+
+platform:
+  os: linux
+  arch: amd64
 
 steps:
 - name: build
-  image: volkerraschek/container-latex:latest-archlinux
   commands:
-  - make latexmk/index.pdf VERSION=${DRONE_TAG}
-- name: push-nextcloud
-  image: volkerraschek/container-latex:latest-archlinux
-  commands:
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file index.pdf --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/Tutorium_WS1819_${DRONE_TAG}.pdf
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/schema_01.sql --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/schema_${DRONE_TAG}.sql
-  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/sqlplus-settings.sql --location $CLOUD_URL/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/sqlplus-settings_${DRONE_TAG}.sql
+  - make latexmk/index.pdf
   environment:
-    CLOUD_URL:
-      from_secret: cloud_url
+    VERSION: ${DRONE_TAG}
+  image: docker.io/volkerraschek/container-latex:latest-archlinux
+  resources:
+    limits:
+      cpu: 500
+      memory: 250M
+
+- name: push-nextcloud
+  commands:
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file index.pdf --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/Tutorium_WS1819_${DRONE_TAG}.pdf
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/schema_01.sql --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/schema_${DRONE_TAG}.sql
+  - curl --fail --user $WEBDAV_USER:$WEBDAV_PASSWORD --upload-file sql/sqlplus-settings.sql --location https://nextcloud.cryptic.systems/remote.php/dav/files/$WEBDAV_USER/Dokumente/Studium/Fachschaftdaten/DB_1_-_Grundlagen_Datenbanken/Tutorien/Tutorium_WS1819/sqlplus-settings_${DRONE_TAG}.sql
+  environment:
     WEBDAV_USER:
       from_secret: webdav_username
     WEBDAV_PASSWORD:
       from_secret: webdav_password
-- name: telegram-notification
-  image: appleboy/drone-telegram:latest
-  settings:
-    token:
-      from_secret: telegram_token
-    to:
-      from_secret: telegram_user_id
-    message: >
-      Version ${DRONE_TAG} of the index.pdf file has been successfully released!
-      Get the new document over the network drive V or compile the
-      document by your self. Take a look into the README for more details:
+  image: docker.io/volkerraschek/container-latex:latest-archlinux
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
 
-      https://github.com/fh-trier/tgdb_ws1819/blob/${DRONE_TAG}/README.md
-- name: pipeline-notification
-  image: drillster/drone-email
+- name: push-gitea
+  image: docker.io/plugins/gitea-release:latest
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
+  settings:
+    base_url: https://git.cryptic.systems
+    api_key:
+      from_secret: gitea_token
+    files:
+    - index.pdf
+    checksum:
+    - md5
+    - sha1
+    - sha256
+    - sha512
+    - adler32
+    - crc32
+
+- name: email-notification
   environment:
     PLUGIN_HOST:
       from_secret: smtp_host
@@ -137,6 +163,11 @@ steps:
       from_secret: smtp_password
     PLUGIN_FROM:
       from_secret: smtp_mail_address
+  image: docker.io/drillster/drone-email:latest
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
   when:
     status:
     - changed
@@ -145,5 +176,54 @@ steps:
 trigger:
   event:
   - tag
+  repo:
+  - fh-trier/tgdb_ws1819
+
+---
+kind: pipeline
+type: kubernetes
+name: sync
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: github
+  image: docker.io/appleboy/drone-git-push:latest
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
+  settings:
+    branch: master
+    remote: ssh://git@github.com/fh-trier/tgdb_ws1819.git
+    force: true
+    ssh_key:
+      from_secret: ssh_key
+
+- name: email-notification
+  environment:
+    PLUGIN_HOST:
+      from_secret: smtp_host
+    PLUGIN_USERNAME:
+      from_secret: smtp_username
+    PLUGIN_PASSWORD:
+      from_secret: smtp_password
+    PLUGIN_FROM:
+      from_secret: smtp_mail_address
+  image: docker.io/drillster/drone-email:latest
+  resources:
+    limits:
+      cpu: 50
+      memory: 25M
+  when:
+    status:
+    - changed
+    - failure
+
+trigger:
+  event:
+  - push
   repo:
   - fh-trier/tgdb_ws1819
