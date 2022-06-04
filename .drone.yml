@@ -3,9 +3,8 @@ kind: pipeline
 type: kubernetes
 name: latest
 
-platform:
-  os: linux
-  arch: amd64
+node_selector:
+  kubernetes.io/arch: amd64
 
 steps:
 - name: build
@@ -13,9 +12,12 @@ steps:
   - make latexmk/index.pdf
   image: docker.io/volkerraschek/latex:latest-archlinux
   resources:
+    requests:
+      cpu: 250
+      memory: 500M
     limits:
       cpu: 500
-      memory: 250M
+      memory: 750M
 
 - name: push-fhtrier
   depends_on:
@@ -59,8 +61,8 @@ steps:
   image: docker.io/volkerraschek/latex:latest-archlinux
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   when:
     repo:
     - fh-trier/tgdb_ws1819
@@ -84,8 +86,8 @@ steps:
   image: docker.io/drillster/drone-email:latest
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   when:
     status:
     - changed
@@ -101,9 +103,8 @@ kind: pipeline
 type: kubernetes
 name: release
 
-platform:
-  os: linux
-  arch: amd64
+node_selector:
+  kubernetes.io/arch: amd64
 
 steps:
 - name: build
@@ -113,9 +114,12 @@ steps:
     VERSION: ${DRONE_TAG}
   image: docker.io/volkerraschek/latex:latest-archlinux
   resources:
+    requests:
+      cpu: 250
+      memory: 500M
     limits:
       cpu: 500
-      memory: 250M
+      memory: 750M
 
 - name: push-nextcloud
   commands:
@@ -130,15 +134,15 @@ steps:
   image: docker.io/volkerraschek/latex:latest-archlinux
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
 
 - name: push-gitea
   image: docker.io/plugins/gitea-release:latest
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   settings:
     base_url: https://git.cryptic.systems
     api_key:
@@ -166,8 +170,8 @@ steps:
   image: docker.io/drillster/drone-email:latest
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   when:
     status:
     - changed
@@ -184,17 +188,16 @@ kind: pipeline
 type: kubernetes
 name: sync
 
-platform:
-  os: linux
-  arch: amd64
+node_selector:
+  kubernetes.io/arch: amd64
 
 steps:
 - name: github
   image: docker.io/appleboy/drone-git-push:latest
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   settings:
     branch: master
     remote: ssh://git@github.com/fh-trier/tgdb_ws1819.git
@@ -215,8 +218,8 @@ steps:
   image: docker.io/drillster/drone-email:latest
   resources:
     limits:
-      cpu: 50
-      memory: 25M
+      cpu: 150
+      memory: 150M
   when:
     status:
     - changed
