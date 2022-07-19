@@ -18,7 +18,7 @@ RELEASE?=1
 # environment to execute the different make steps inside. Therefore, the bulid
 # environment requires all necessary dependancies to build this project.
 CONTAINER_RUNTIME?=$(shell which docker)
-BUILD_IMAGE:=volkerraschek/container-latex:latest-ubuntu18.04
+BUILD_IMAGE:=volkerraschek/latex:latest-ubuntu18.04
 
 # Input tex-file and output pdf-file
 FILE_NAME=index
